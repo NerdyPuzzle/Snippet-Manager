@@ -30,8 +30,9 @@ bool quit = false;
 bool deleting = false;
 bool delete_confirmed = false;
 bool save = false;
+bool close_tab = false;
 
-char search_bar[512] = { 0 };
+std::string search_bar = "";
 
 std::vector<int> index_cache;
 std::vector<std::string> snippets;
@@ -70,6 +71,7 @@ std::vector<std::string> floating_window_code;
 
 //settings variables
 bool autosave = false;
+float size_offset = 0;
 
 void FilterSnippets() {
     size_t filter = 0;
@@ -206,6 +208,7 @@ void OpenSnippet() {
 void SaveSettings() {
     std::ofstream out("settings.ini");
     out << autosave << std::endl;
+    out << size_offset << std::endl;
     out.close();
 }
 
@@ -213,15 +216,18 @@ void LoadSettings() {
     if (FileExists("settings.ini")) {
         std::ifstream in("settings.ini");
         in >> autosave;
+        in >> size_offset;
         in.close();
     }
 }
 
 int main()
 {
+    Image icon = LoadImage("icon.png");
     InitWindow(1200, 600, "Snippet Manager");
-    SetWindowMinSize(1200, 600);
+    SetWindowMinSize(400, 200);
     SetWindowState(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
+    SetWindowIcon(icon);
     rlImGuiSetup(true);
     SetGuiStyle();
     SetupTextEditor(&text_editor);
@@ -271,6 +277,9 @@ int main()
                 if (ImGui::MenuItem("Save", "(Ctrl+S)")) {
                     if (open_snippets > 0 && !save) save = true;
                 }
+                if (ImGui::MenuItem("Close", "(Ctrl+W)")) {
+                    if (open_snippets > 0 && !close_tab) close_tab = true;
+                }
                 if (ImGui::MenuItem("Delete", "(Ctrl+Q)")) {
                     if (!deleting) deleting = true;
                 }
@@ -306,13 +315,15 @@ int main()
 
         // Right side window //
         ImGui::SetNextWindowPos({ 0, 19 });
-        ImGui::SetNextWindowSize({ 200, ScreenHeight });
-        if (ImGui::Begin("Snippets", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize)) {
-            ImGui::SetNextItemWidth(182.75);
-            ImGui::InputText(" ", search_bar, 512);
+        ImGui::SetNextWindowSizeConstraints({ 20, ScreenHeight }, { ScreenWidth - 30, ScreenHeight });
+        ImGui::SetNextWindowSize({ 200, ScreenHeight }, ImGuiCond_FirstUseEver);
+        if (ImGui::Begin("Snippets", NULL, ImGuiWindowFlags_NoCollapse)) {
+            size_offset = ImGui::GetWindowWidth() - 200;
+            ImGui::SetNextItemWidth(ImGui::GetColumnWidth());
+            ImGui::InputText(" ", &search_bar);
             ImGui::Spacing();
             ImGui::BeginChild("snips", { 0, ScreenHeight - 80 });
-            ImGui::SetNextItemWidth(182.75);
+            ImGui::SetNextItemWidth(ImGui::GetColumnWidth());
             ImGui::ListBox(" ", &selected_snippet, filtered_snippets.data(), filtered_snippets.size(), snippets.size());
             ImGui::EndChild();
             ImGui::End();
@@ -320,8 +331,8 @@ int main()
         //----------------------------------//
 
         // Snippet viewer tabs //
-        ImGui::SetNextWindowPos({ 200, 19 });
-        ImGui::SetNextWindowSize({ ScreenWidth - 200,  ScreenHeight - 15 });
+        ImGui::SetNextWindowPos({ 200 + size_offset, 19 });
+        ImGui::SetNextWindowSize({ ScreenWidth - 200 - size_offset,  ScreenHeight - 15 });
         if (ImGui::Begin("Snippet Editor", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBringToFrontOnFocus)) {
             if (ImGui::BeginTabBar("snippets", ImGuiTabBarFlags_FittingPolicyScroll)) {
                 if (open_snippets == 0) {
@@ -331,6 +342,10 @@ int main()
                 for (int i = 0; i < open_snippets; i++) {
                     bool tab_open = true;
                     if (ImGui::BeginTabItem(open_snippet_names[i].c_str(), &tab_open)) {
+                        if (close_tab) {
+                            close_tab = false;
+                            tab_open = false;
+                        }
                         if (i != currently_open_snippet) { // update handling
                             currently_open_snippet = i;
                             edit_editor.SetText("");
@@ -438,10 +453,12 @@ int main()
                 ImGui::PopID();
                 ImGui::Spacing();
                 if (ImGui::Button("Save Snippet", { ImGui::GetColumnWidth(), 25 })) {
-                    snippet_code = text_editor.GetText();
-                    SaveSnippet();
-                    text_editor.SetText(snippet_code);
-                    creating_snippet = false;
+                    if (snippet_name != "" && snippet_name.size() <= 100 && std::find(snippets.begin(), snippets.end(), snippet_name) == snippets.end()) {
+                        snippet_code = text_editor.GetText();
+                        SaveSnippet();
+                        text_editor.SetText(snippet_code);
+                        creating_snippet = false;
+                    }
                 }
             }
             else {
@@ -488,6 +505,7 @@ int main()
         }
         if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Q)) if (!deleting) deleting = true;
         if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_S)) if (open_snippets > 0 && !save) save = true;
+        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_W)) if (open_snippets > 0 && !close_tab) close_tab = true;
         //------------------//
 
         rlImGuiEnd();
@@ -495,7 +513,10 @@ int main()
         EndDrawing();
     }
 
+    UnloadImage(icon);
     SaveSettings();
     rlImGuiShutdown();
     CloseWindow();
+
+    return 0;
 }

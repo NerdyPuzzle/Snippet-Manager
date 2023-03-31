@@ -136,9 +136,16 @@
     <ClInclude Include="darktheme_style.h" />
     <ClInclude Include="fontawesome.h" />
     <ClInclude Include="IconsFontAwesome6.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="rImGui.h" />
     <ClInclude Include="TextEditor.h" />
     <ClInclude Include="windows_bridge.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="SnippetManager.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\..\..\..\Downloads\window-app-code-programming-terminal-shell-line-command-apps-512.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
