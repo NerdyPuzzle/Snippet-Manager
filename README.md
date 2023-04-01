@@ -8,4 +8,4 @@ Snippet manager is a simple code-managing software inspired by github gist.
 
 ![image](https://user-images.githubusercontent.com/112079900/229292753-aca67f55-ef76-47a3-afa1-40ae299a643d.png)
 
-* PS: Opening new windows of a tab's code like the images above uses the shortcut Ctrl + F
+* PS: Opening new windows of a tabs' contents like the images above uses the shortcut Ctrl + F
