@@ -14,7 +14,7 @@
 #include "rImGui.h"
 #include "darktheme_style.h"
 #include "windows_bridge.h"
-#include "TextEditor.h"
+#include "TextEditorFork.h"
 
 namespace fs = std::experimental::filesystem;
 
@@ -62,12 +62,21 @@ std::vector<std::string> open_snippet_paths;
 std::string current_code = "";
 std::string current_description = "";
 std::string description_cache = "";
+bool update_tab = false;
 
 //floating windows
 int floating_windows = 0;
 bool float_window = false;
 std::vector<std::string> floating_window_names;
 std::vector<std::string> floating_window_code;
+
+//git integration
+bool git_not_found = false;
+bool cloning_git = false;
+std::string gist_link = "";
+bool command_executed = false;
+bool command_fail = false;
+bool command_success = false;
 
 //settings variables
 bool autosave = false;
@@ -118,7 +127,7 @@ void BuildDir(const std::string& path) {
         }
     }
 }
-
+ 
 void SaveSnippet() {
     if (snippet_name != "" && std::find(snippets.begin(), snippets.end(), snippet_name) == snippets.end()) {
         if (!DirectoryExists("snippets/"))
@@ -140,12 +149,31 @@ void SaveSnippet() {
     snippet_code.clear();
 }
 
+void CopyFromGist(std::string path) {
+    snippet_description.clear();
+    for (const fs::v1::path& entry : fs::directory_iterator(path)) {
+        if (fs::is_regular_file(entry)) {
+            snippet_name.clear();
+            snippet_code.clear();
+            snippet_name = GetFileNameWithoutExt(entry.filename().string().c_str());
+            std::ifstream in(entry);
+            std::string temp;
+            while (std::getline(in, temp)) {
+                snippet_code += temp + "\n";
+            }
+            in.close();
+            SaveSnippet();
+        }
+    }
+}
+
 void SetupTextEditor(TextEditor* editor) {
     editor->SetLanguageDefinition(lang);
     editor->SetHandleKeyboardInputs(true);
     editor->SetHandleMouseInputs(true);
     editor->SetColorizerEnable(true);
     editor->SetReadOnly(false);
+    editor->SetPalette(TextEditor::GetDarkPalette());
 }
 
 void LoadSnippets() {
@@ -205,18 +233,83 @@ void OpenSnippet() {
     }
 }
 
+void UpdateLanguageDefinition(std::string langdef) {
+    if (langdef == "C")
+        for (TextEditor* editor : text_editors)
+            editor->SetLanguageDefinition(TextEditor::LanguageDefinition::C());
+    else if (langdef == "C++")
+        for (TextEditor* editor : text_editors)
+            editor->SetLanguageDefinition(TextEditor::LanguageDefinition::CPlusPlus());
+    else if (langdef == "HLSL")
+        for (TextEditor* editor : text_editors)
+            editor->SetLanguageDefinition(TextEditor::LanguageDefinition::HLSL());
+    else if (langdef == "GLSL")
+        for (TextEditor* editor : text_editors)
+            editor->SetLanguageDefinition(TextEditor::LanguageDefinition::GLSL());
+    else if (langdef == "Python")
+        for (TextEditor* editor : text_editors)
+            editor->SetLanguageDefinition(TextEditor::LanguageDefinition::Python());
+    else if (langdef == "SQL")
+        for (TextEditor* editor : text_editors)
+            editor->SetLanguageDefinition(TextEditor::LanguageDefinition::SQL());
+    else if (langdef == "AngelScript")
+        for (TextEditor* editor : text_editors)
+            editor->SetLanguageDefinition(TextEditor::LanguageDefinition::AngelScript());
+    else if (langdef == "Lua")
+        for (TextEditor* editor : text_editors)
+            editor->SetLanguageDefinition(TextEditor::LanguageDefinition::Lua());
+    else if (langdef == "C#")
+        for (TextEditor* editor : text_editors)
+            editor->SetLanguageDefinition(TextEditor::LanguageDefinition::CSharp());
+    else if (langdef == "Json")
+        for (TextEditor* editor : text_editors)
+            editor->SetLanguageDefinition(TextEditor::LanguageDefinition::Json());
+    else if (langdef == "Java")
+        for (TextEditor* editor : text_editors)
+            editor->SetLanguageDefinition(TextEditor::LanguageDefinition::Java());
+}
+
+void UpdateColorPalette(std::string palette) {
+    if (palette == "mariana")
+        for (TextEditor* editor : text_editors)
+            editor->SetPalette(TextEditor::GetMarianaPalette());
+    else if (palette == "dark")
+        for (TextEditor* editor : text_editors)
+            editor->SetPalette(TextEditor::GetDarkPalette());
+    else if (palette == "light")
+        for (TextEditor* editor : text_editors)
+            editor->SetPalette(TextEditor::GetLightPalette());
+    else if (palette == "retroblue")
+        for (TextEditor* editor : text_editors)
+            editor->SetPalette(TextEditor::GetRetroBluePalette());
+}
+
 void SaveSettings() {
     std::ofstream out("settings.ini");
     out << autosave << std::endl;
     out << size_offset << std::endl;
+    out << edit_editor.GetLanguageDefinitionName() << std::endl;
+    if (edit_editor.GetPalette() == TextEditor::GetMarianaPalette())
+        out << "mariana\n";
+    else if (edit_editor.GetPalette() == TextEditor::GetDarkPalette())
+        out << "dark\n";
+    else if (edit_editor.GetPalette() == TextEditor::GetLightPalette())
+        out << "light\n";
+    else if (edit_editor.GetPalette() == TextEditor::GetRetroBluePalette())
+        out << "retroblue\n";
     out.close();
 }
 
 void LoadSettings() {
     if (FileExists("settings.ini")) {
+        std::string temp;
         std::ifstream in("settings.ini");
         in >> autosave;
         in >> size_offset;
+        in >> temp;
+        UpdateLanguageDefinition(temp);
+        in >> temp;
+        UpdateColorPalette(temp);
         in.close();
     }
 }
@@ -305,6 +398,85 @@ int main()
                 if (ImGui::MenuItem(autosave ? "Disable automatic saves" : "Enable automatic saves")) {
                     autosave = !autosave;
                 }
+                if (ImGui::BeginMenu("Code Editor")) {
+                    if (ImGui::BeginMenu("Syntax")) {
+                        if (ImGui::MenuItem("C")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetLanguageDefinition(TextEditor::LanguageDefinition::C());
+                        }
+                        if (ImGui::MenuItem("C++")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetLanguageDefinition(TextEditor::LanguageDefinition::CPlusPlus());
+                        }
+                        if (ImGui::MenuItem("HLSL")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetLanguageDefinition(TextEditor::LanguageDefinition::HLSL());
+                        }
+                        if (ImGui::MenuItem("GLSL")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetLanguageDefinition(TextEditor::LanguageDefinition::GLSL());
+                        }
+                        if (ImGui::MenuItem("Python")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetLanguageDefinition(TextEditor::LanguageDefinition::Python());
+                        }
+                        if (ImGui::MenuItem("SQL")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetLanguageDefinition(TextEditor::LanguageDefinition::SQL());
+                        }
+                        if (ImGui::MenuItem("AngelScript")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetLanguageDefinition(TextEditor::LanguageDefinition::AngelScript());
+                        }
+                        if (ImGui::MenuItem("Lua")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetLanguageDefinition(TextEditor::LanguageDefinition::Lua());
+                        }
+                        if (ImGui::MenuItem("C#")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetLanguageDefinition(TextEditor::LanguageDefinition::CSharp());
+                        }
+                        if (ImGui::MenuItem("Json")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetLanguageDefinition(TextEditor::LanguageDefinition::Json());
+                        }
+                        if (ImGui::MenuItem("Java")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetLanguageDefinition(TextEditor::LanguageDefinition::Java());
+                        }
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::BeginMenu("Palette")) {
+                        if (ImGui::MenuItem("Mariana")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetPalette(TextEditor::GetMarianaPalette());
+                        }
+                        if (ImGui::MenuItem("Dark")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetPalette(TextEditor::GetDarkPalette());
+                        }
+                        if (ImGui::MenuItem("Light")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetPalette(TextEditor::GetLightPalette());
+                        }
+                        if (ImGui::MenuItem("Retro Blue")) {
+                            for (TextEditor* editor : text_editors)
+                                editor->SetPalette(TextEditor::GetRetroBluePalette());
+                        }
+                        ImGui::EndMenu();
+                    }
+                    ImGui::EndMenu();
+                }
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu("Git")) {
+                if (ImGui::MenuItem("Add snippets from gist")) {
+                    int returnCode = std::system("git --version");
+                    if (returnCode == 0)
+                        cloning_git = true;
+                    else
+                        git_not_found = true;
+                }
                 ImGui::EndMenu();
             }
             ImGui::EndMainMenuBar();
@@ -322,7 +494,7 @@ int main()
             ImGui::SetNextItemWidth(ImGui::GetColumnWidth());
             ImGui::InputText(" ", &search_bar);
             ImGui::Spacing();
-            ImGui::BeginChild("snips", { 0, ScreenHeight - 80 });
+            ImGui::BeginChild("snips", { 0, ScreenHeight - 77 });
             ImGui::SetNextItemWidth(ImGui::GetColumnWidth());
             ImGui::ListBox(" ", &selected_snippet, filtered_snippets.data(), filtered_snippets.size(), snippets.size());
             ImGui::EndChild();
@@ -342,15 +514,12 @@ int main()
                 for (int i = 0; i < open_snippets; i++) {
                     bool tab_open = true;
                     if (ImGui::BeginTabItem(open_snippet_names[i].c_str(), &tab_open)) {
-                        if (close_tab) {
-                            close_tab = false;
-                            tab_open = false;
-                        }
-                        if (i != currently_open_snippet) { // update handling
+                        if (i != currently_open_snippet || update_tab) { // update handling
                             currently_open_snippet = i;
                             edit_editor.SetText("");
                             GetCodeAndDescription(open_snippet_paths[i], current_code, current_description);
                             edit_editor.SetText(current_code);
+                            update_tab = false;
                         }
                         if (delete_confirmed) tab_open = false;
                         edit_editor.Render("id_edit");
@@ -371,7 +540,12 @@ int main()
                         }
                         ImGui::EndTabItem();
                     }
+                    if (close_tab) {
+                        close_tab = false;
+                        tab_open = false;
+                    }
                     if (!tab_open) {
+                        update_tab = true;
                         std::vector<std::string> new_open_names;
                         std::vector<std::string> new_open_paths;
                         for (int j = 0; j < open_snippets; j++) {
@@ -493,11 +667,92 @@ int main()
             deleting = false;
         //--------------------------------//
 
+        // Git not found popup //
+        if (git_not_found) {
+            ImGui::SetNextWindowSize({ 350, 150 }, ImGuiCond_Once);
+            ImGui::SetNextWindowPos({ (ScreenWidth - 350) / 2, (ScreenHeight - 150) / 2 }, ImGuiCond_Once);
+            if (ImGui::Begin("Git version check failed", &git_not_found, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize)) {
+                ImGui::NewLine();
+                ImGui::Spacing();
+                ImGui::SetCursorPosX(60);
+                ImGui::Text("Failed to verify git installation");
+                ImGui::NewLine(); ImGui::NewLine();
+                ImGui::SetCursorPosX(150);
+                if (ImGui::Button("Ok", { 50, 25 })) git_not_found = false;
+                ImGui::End();
+            }
+        }
+        //---------------------------//
+
+        // Clone gist popup & actions //
+        if (cloning_git) {
+            ImGui::SetNextWindowSize({ 350, 150 }, ImGuiCond_Once);
+            ImGui::SetNextWindowPos({ (ScreenWidth - 350) / 2, (ScreenHeight - 150) / 2 }, ImGuiCond_Once);
+            if (ImGui::Begin("Gist snippet cloning", &cloning_git, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize)) {
+                ImGui::NewLine(); ImGui::Spacing(); ImGui::Spacing();
+                ImGui::SetNextItemWidth(ImGui::GetColumnWidth());
+                ImGui::InputTextWithHint(" ", "https://gist.github.com/address.git", &gist_link);
+                ImGui::NewLine(); ImGui::NewLine();
+                ImGui::SetCursorPosX(90);
+                if (ImGui::Button("Clone", { 70, 25 })) {
+                    size_t is_valid_1 = gist_link.find("https://gist.github.com");
+                    size_t is_valid_2 = gist_link.find(".git");
+                    if (is_valid_1 != std::string::npos && is_valid_2 != std::string::npos) {
+                        cloning_git = false;
+                        command_executed = true;
+                    }
+                }
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(190);
+                if (ImGui::Button("Cancel", { 70, 25 })) { cloning_git = false; gist_link.clear(); }
+                ImGui::End();
+            }
+        }
+
+        if (command_executed) {
+            command_executed = false;
+            std::string command = "git clone " + gist_link + " " + (std::string)GetWorkingDirectory() + "/gist_snippets/";
+            int result = std::system(command.c_str());
+            if (result == 0) {
+                CopyFromGist("gist_snippets/");
+                std::string remover = "attrib -r " + (std::string)GetWorkingDirectory() + "\\*.* /s";
+                std::system(remover.c_str());
+                fs::remove_all("gist_snippets/");
+                command_success = true;
+            }
+            else {
+                command_fail = true;
+            }
+        }
+
+        if (command_fail || command_success) {
+            std::string error = (command_fail ? "Failed to clone gist " : "Successfully cloned gist ") + gist_link;
+            ImGui::SetNextWindowSize({ 25 + ImGui::CalcTextSize(error.c_str()).x, 150});
+            ImGui::SetNextWindowPos({ (ScreenWidth - 25 - ImGui::CalcTextSize(error.c_str()).x) / 2, (ScreenHeight - 150) / 2 }, ImGuiCond_Once);
+            if (ImGui::Begin((command_fail ? "Command execution failed" : "Command executed successfully"), NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize)) {
+                ImGui::NewLine();
+                ImGui::Spacing();
+                ImVec2 content_max = ImGui::GetWindowContentRegionMax();
+                ImVec2 content_min = ImGui::GetWindowContentRegionMin();
+                ImGui::SetCursorPosX((content_min.x + content_max.x - ImGui::CalcTextSize(error.c_str()).x) / 2.0f);
+                ImGui::Text(error.c_str());
+                ImGui::NewLine(); ImGui::NewLine();
+                ImGui::SetCursorPosX((content_min.x + content_max.x - 50) / 2.0f);
+                if (ImGui::Button("Ok", { 50, 25 })) {
+                    command_fail = false; 
+                    command_success = false; 
+                    gist_link.clear();
+                }
+                ImGui::End(); //https://gist.github.com/.git
+            }
+        }
+        //--------------------------------//
+
         // Some shortcuts //
         if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_E) && !creating_snippet) { creating_snippet = true; text_editor.SetText(""); }
         if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) { OpenSnippet(); selected_snippet = -1; }
         if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_F)) float_window = true;
-        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_V)) { if (!creating_snippet && open_snippets <= 0 && floating_windows <= 0) { creating_snippet = true; text_editor.SetText(ImGui::GetClipboardText()); } }
+        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_V)) { if (!cloning_git && !creating_snippet && open_snippets <= 0 && floating_windows <= 0) { creating_snippet = true; text_editor.SetText(ImGui::GetClipboardText()); } }
         if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_C)) {
             ImGuiIO& io = ImGui::GetIO();
             if (!io.WantTextInput && open_snippets > 0)

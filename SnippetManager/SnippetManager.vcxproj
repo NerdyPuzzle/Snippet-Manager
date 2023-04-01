@@ -127,9 +127,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="LanguageDefinitions.cpp" />
     <ClCompile Include="rImGui.cpp" />
     <ClCompile Include="SnippetManager.cpp" />
-    <ClCompile Include="TextEditor.cpp" />
+    <ClCompile Include="TextEditorFork.cpp" />
     <ClCompile Include="windows_bridge.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -138,7 +139,7 @@
     <ClInclude Include="IconsFontAwesome6.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="rImGui.h" />
-    <ClInclude Include="TextEditor.h" />
+    <ClInclude Include="TextEditorFork.h" />
     <ClInclude Include="windows_bridge.h" />
   </ItemGroup>
   <ItemGroup>

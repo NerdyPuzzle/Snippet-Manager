@@ -1,0 +1,94 @@
+AirNFT
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.17;
+
+import "@openzeppelin/contracts@4.8.2/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts@4.8.2/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts@4.8.2/access/AccessControl.sol";
+import "@openzeppelin/contracts@4.8.2/utils/Counters.sol";
+
+contract AirNFT is ERC721, ERC721URIStorage, AccessControl {
+  event URI(uint256 tokeId);
+  event URIAll();
+  event ContractURI();
+
+  using Counters for Counters.Counter;
+
+  bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+  bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+  Counters.Counter private _tokenIdCounter;
+  string private _contractURI;
+  string private _tokenBaseURI;
+
+  constructor(
+    string memory name_,
+    string memory symbol_,
+    string memory tokenBaseURI_,
+    string memory contractURI_
+  ) ERC721(name_, symbol_) {
+    _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    _grantRole(MINTER_ROLE, msg.sender);
+    _grantRole(ADMIN_ROLE, msg.sender);
+    _contractURI = contractURI_;
+    _tokenBaseURI = tokenBaseURI_;
+    _tokenIdCounter.increment();
+  }
+
+  function contractURI() public view returns (string memory) {
+    return _contractURI;
+  }
+
+  function updateContractURI(
+    string memory contractURI_
+  ) external onlyRole(ADMIN_ROLE) {
+    _contractURI = contractURI_;
+    emit ContractURI();
+  }
+
+  function setTokenURI(
+    uint256 _tokenId,
+    string memory _URI
+  ) external onlyRole(ADMIN_ROLE) {
+    super._setTokenURI(_tokeId, _URI);
+    emit URI(_tokenId);
+  }
+
+  function setTokenBaseURI(string memory _URI) external onlyRole(ADMIN_ROLE) {
+    _tokenBaseURI = _URI;
+    emit URIAll();
+  }
+
+  function mint(address to) public onlyRole(MINTER_ROLE) {
+    uint256 tokenId = _tokenIdCounter.current();
+    _tokenIdCounter.increment();
+    _safeMint(to, tokenId);
+  }
+
+  function safeMint(
+    address to,
+    string memory uri
+  ) public onlyRole(MINTER_ROLE) {
+    uint256 tokenId = _tokenIdCounter.current();
+    _tokenIdCounter.increment();
+    _safeMint(to, tokenId);
+    _setTokenURI(tokenId, uri);
+  }
+
+  // The following functions are overrides required by Solidity.
+  function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
+    super._burn(tokenId);
+  }
+
+  function tokenURI(
+    uint256 tokenId
+  ) public view override(ERC721, ERC721URIStorage) returns (string memory) {
+    return super.tokenURI(tokenId);
+  }
+
+  function supportsInterface(
+    bytes4 interfaceId
+  ) public view override(ERC721, AccessControl) returns (bool) {
+    return super.supportsInterface(interfaceId);
+  }
+}
+[SNIPPET_CODE_END]

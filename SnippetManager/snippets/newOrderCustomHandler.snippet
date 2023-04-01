@@ -1,0 +1,142 @@
+newOrderCustomHandler
+<?php
+
+use \Bitrix\Main\Loader;
+use \Bitrix\Main\SystemException;
+use \Bitrix\Sale;
+use \Bitrix\Main\UserTable;
+use \Bitrix\Main\EventManager;
+
+$eventManager = EventManager::getInstance();
+$eventManager->addEventHandler('sale', 'OnOrderNewSendEmail', 'customSaleMails');
+
+function customSaleMails($orderId, &$eventName, &$arFields) 
+{
+    try 
+    {
+        if (Loader::includeModule('sale'))
+        {
+            /**
+             * 
+             * $order - Загруженный заказ на D7.
+             * $arOrder - Загруженный заказ на старом ядре, понадобился, т.к на D7 не удалось получить свойство USER_DESCRIPTION
+             * $propsCollection - Список свойств заказа.
+             * $priceOrder - Стоимость заказа.
+             * $priceDeliveryOrder - Стоимость доставки.
+             * $currencyOrder - Валюта заказа.
+             *
+             */
+            $order = Sale\Order::load($orderId);
+            $arOrder = CSaleOrder::GetByID($orderId);
+            $propsCollection = $order->getPropertyCollection();
+            $priceOrder = $order->getPrice();
+            $priceDeliveryOrder = $order->getDeliveryPrice();
+            $currencyOrder = $order->getCurrency();
+            
+            if (!empty($arOrder) && !empty($propsCollection))
+            {
+                if (is_array($arOrder))
+                {
+                    $arFields['CLIENT_COMMENT_ORDER'] = $arOrder['USER_DECRIPTION'];
+                }
+        
+                if ($emailPropValue = $propsCollection->getUserEmail())
+                {
+                    $arFields['CLIENT_EMAIL'] = $emailPropValue->getValue();
+                }
+        
+                if ($namePropValue = $propsCollection->getPayerName())
+                {
+                    $arFields['CLIENT_NAME'] = $namePropValue->getValue();
+                }
+        
+                if ($phonePropValue = $propsCollection->getPhone())
+                {
+                    $arFields['CLIENT_PHONE'] = $phonePropValue->getValue();
+                }
+        
+                if ($locationPropValue = $propsCollection->getDeliveryLocation())
+                {
+                    $res = \Bitrix\Sale\Location\LocationTable::getList(array(
+                        'filter' => array(
+                            '=CODE' => $locationPropValue->getValue(), 
+                            '=PARENTS.NAME.LANGUAGE_ID' => LANGUAGE_ID,
+                            '=PARENTS.TYPE.NAME.LANGUAGE_ID' => LANGUAGE_ID,
+                        ),
+                        'select' => array(
+                            'I_ID' => 'PARENTS.ID',
+                            'I_NAME_RU' => 'PARENTS.NAME.NAME',
+                            'I_TYPE_CODE' => 'PARENTS.TYPE.CODE',
+                            'I_TYPE_NAME_RU' => 'PARENTS.TYPE.NAME.NAME'
+                        ),
+                        'order' => array(
+                            'PARENTS.DEPTH_LEVEL' => 'asc'
+                        )
+                    ));
+        
+                    /**
+                     * $deliveryAddress - Итоговый адресс доставки.
+                     * $countryName - Страна.
+                     * $regionName - Регион.
+                     * $cityName - Город.
+                     * $subregionName - Район.
+                     */
+                    $deliveryAddress = '';
+                    $countryName = '';
+                    $regionName = '';
+                    $cityName = '';
+                    $subregionName = '';
+        
+                    while($item = $res->fetch())
+                    {
+                        if (!empty($item))
+                        {
+                            if ($item['I_TYPE_CODE'] == 'COUNTRY')
+                            {
+                                $countryName = $item['I_NAME_RU'];
+                            }
+                            if ($item['I_TYPE_CODE'] == 'REGION')
+                            {
+                                $regionName = $item['I_NAME_RU'];
+                            }
+                                
+                            if ($item ['I_TYPE_CODE'] == 'CITY')
+                            {
+                                $cityName = $item['I_NAME_RU'] ;
+                            }
+                                
+                            if ($item['I_TYPE_CODE'] == 'SUBREGION')
+                            {
+                                $subregionName = $item['I_NAME_RU'];
+                            }
+                        }
+                        else
+                        {
+                            $deliveryAddress = "Адрес доставки не был указан в заказе";
+                        }
+                    }
+                    $deliveryAddress = "Страна: $countryName Регион: $regionName Город: $cityName Район: $subregionName";
+                    $arFields['DELIVERY_ADDRESS'] = $deliveryAddress;
+                }
+    
+                $arFields['PRICE_ORDER'] = $priceOrder;
+                $arFields['PRICE_DELIVERY_ORDER'] = $priceDeliveryOrder;
+                $arFields['CURRENCY_ORDER'] = $currencyOrder;
+            }
+        }
+    }
+    catch (LoaderException $e)
+    {
+        ShowError($e->getMessage());
+    }
+    catch (\Bitrix\Main\ObjectPropertyException $e)
+    {
+        ShowError($e->getMessage());
+    }
+    catch (\Bitrix\Main\SystemException $e)
+    {
+        ShowError($e->getMessage());
+    }
+}
+?>
+[SNIPPET_CODE_END]
