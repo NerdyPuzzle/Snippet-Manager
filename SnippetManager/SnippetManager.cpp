@@ -142,7 +142,6 @@ void SaveSnippet() {
 
         snippets.push_back(snippet_name);
         snippet_paths.push_back("snippets/" + snippet_name + ".snippet");
-        std::cout << "snippets/" + snippet_name + ".snippet\n";
     }
 
     snippet_name.clear();
@@ -226,7 +225,6 @@ void OpenSnippet() {
                 open_snippets++;
                 open_snippet_names.push_back(snippets[index_cache[selected_snippet]]);
                 open_snippet_paths.push_back(snippet_paths[index_cache[selected_snippet]]);
-                std::cout << snippet_paths[index_cache[selected_snippet]] << std::endl;
                 break;
             }
         }
