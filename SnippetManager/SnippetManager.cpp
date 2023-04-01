@@ -96,7 +96,7 @@ void FilterSnippets() {
     }
 }
 
-void BuildDir(const std::string& path) {
+void BuildDir(const std::string path) {
     std::vector<std::string> dirs;
     std::string folder;
     for (char c : path) {
@@ -135,13 +135,14 @@ void SaveSnippet() {
 
         std::ofstream out("snippets/" + snippet_name + ".snippet");
         out << snippet_name << std::endl;
-        out << snippet_code;
+        out << snippet_code + (snippet_code[snippet_code.size() - 1] != '\n' ? "\n" : "");
         out << "[SNIPPET_CODE_END]" << std::endl;
         out << snippet_description;
         out.close();
 
         snippets.push_back(snippet_name);
         snippet_paths.push_back("snippets/" + snippet_name + ".snippet");
+        std::cout << "snippets/" + snippet_name + ".snippet\n";
     }
 
     snippet_name.clear();
@@ -150,17 +151,15 @@ void SaveSnippet() {
 }
 
 void CopyFromGist(std::string path) {
-    snippet_description.clear();
-    for (const fs::v1::path& entry : fs::directory_iterator(path)) {
+    for (const fs::v1::path entry : fs::directory_iterator(path)) {
         if (fs::is_regular_file(entry)) {
-            snippet_name.clear();
-            snippet_code.clear();
             snippet_name = GetFileNameWithoutExt(entry.filename().string().c_str());
             std::ifstream in(entry);
             std::string temp;
             while (std::getline(in, temp)) {
                 snippet_code += temp + "\n";
             }
+            snippet_description = "Cloned from gist " + gist_link;
             in.close();
             SaveSnippet();
         }
@@ -192,7 +191,7 @@ void LoadSnippets() {
     }
 }
 
-void GetCodeAndDescription(const std::string& path, std::string& code, std::string& description) {
+void GetCodeAndDescription(const std::string path, std::string& code, std::string& description) {
     std::ifstream in(path);
     code = "";
     description = "";
@@ -206,10 +205,10 @@ void GetCodeAndDescription(const std::string& path, std::string& code, std::stri
     in.close();
 }
 
-void UpdateFileContents(const std::string& path, const std::string& name, const std::string& code, const std::string& description) {
+void UpdateFileContents(const std::string path, const std::string name, const std::string code, const std::string description) {
     std::ofstream out(path);
     out << name << std::endl;
-    out << code;
+    out << code + (code[code.size() - 1] != '\n' ? "\n" : "");
     out << "[SNIPPET_CODE_END]" << std::endl;
     out << description;
     out.close();
@@ -219,7 +218,7 @@ void OpenSnippet() {
     if (selected_snippet > index_cache.size() - 1 || selected_snippet < 0)
         return;
 
-    for (const fs::v1::path& entry : fs::directory_iterator("snippets/")) {
+    for (const fs::v1::path entry : fs::directory_iterator("snippets/")) {
         if (IsFileExtension(entry.filename().string().c_str(), ".snippet")) {
             if (entry.filename().string() == snippets[index_cache[selected_snippet]] + ".snippet") {
                 if (std::find(open_snippet_names.begin(), open_snippet_names.end(), snippets[index_cache[selected_snippet]]) != open_snippet_names.end())
@@ -227,6 +226,7 @@ void OpenSnippet() {
                 open_snippets++;
                 open_snippet_names.push_back(snippets[index_cache[selected_snippet]]);
                 open_snippet_paths.push_back(snippet_paths[index_cache[selected_snippet]]);
+                std::cout << snippet_paths[index_cache[selected_snippet]] << std::endl;
                 break;
             }
         }
@@ -525,7 +525,7 @@ int main()
                         edit_editor.Render("id_edit");
                         ImGui::Spacing();
                         ImGui::InputTextMultiline(" ", &current_description, { ImGui::GetColumnWidth(), 100 }, ImGuiInputTextFlags_AllowTabInput);
-                        if (autosave ? edit_editor.IsTextChanged() || (current_description != description_cache) : save) {
+                        if ((autosave ? edit_editor.IsTextChanged() || (current_description != description_cache) : save)) {
                             UpdateFileContents(open_snippet_paths[i], open_snippet_names[i], edit_editor.GetText(), current_description);
                             save = false;
                         }
@@ -557,15 +557,22 @@ int main()
                                 if (j == i && delete_confirmed) {
                                     delete_confirmed = false;
                                     std::vector<std::string> new_snippet_names;
+                                    std::vector < std::string> new_snippet_paths;
+                                    int k = 0;
                                     for (const std::string snippet : snippets) {
                                         if (snippet == open_snippet_names[j]) {
                                             std::remove(open_snippet_paths[j].c_str());
                                         }
-                                        else
+                                        else {
                                             new_snippet_names.push_back(snippet);
+                                            new_snippet_paths.push_back(snippet_paths[k]);
+                                        }
+                                        k++;
                                     }
                                     snippets.clear();
+                                    snippet_paths.clear();
                                     snippets = new_snippet_names;
+                                    snippet_paths = new_snippet_paths;
                                 }
                         }
                         open_snippet_names.clear();
