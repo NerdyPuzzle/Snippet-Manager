@@ -506,7 +506,7 @@ int main()
         ImGui::SetNextWindowPos({ 200 + size_offset, 19 });
         ImGui::SetNextWindowSize({ ScreenWidth - 200 - size_offset,  ScreenHeight - 15 });
         if (ImGui::Begin("Snippet Editor", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBringToFrontOnFocus)) {
-            if (ImGui::BeginTabBar("snippets", ImGuiTabBarFlags_FittingPolicyScroll)) {
+            if (ImGui::BeginTabBar("snippets", ImGuiTabBarFlags_FittingPolicyScroll | ImGuiTabBarFlags_AutoSelectNewTabs)) {
                 if (open_snippets == 0) {
                     currently_open_snippet = -1;
                     description_cache = "";
@@ -538,11 +538,11 @@ int main()
                                 floating_window_code.push_back(edit_editor.GetText());
                             }
                         }
+                        if (close_tab) {
+                            close_tab = false;
+                            tab_open = false;
+                        }
                         ImGui::EndTabItem();
-                    }
-                    if (close_tab) {
-                        close_tab = false;
-                        tab_open = false;
                     }
                     if (!tab_open) {
                         update_tab = true;
@@ -749,15 +749,11 @@ int main()
         //--------------------------------//
 
         // Some shortcuts //
-        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_E) && !creating_snippet) { creating_snippet = true; text_editor.SetText(""); }
         if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) { OpenSnippet(); selected_snippet = -1; }
+        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_E) && !creating_snippet) { creating_snippet = true; text_editor.SetText(""); }
         if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_F)) float_window = true;
         if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_V)) { if (!cloning_git && !creating_snippet && open_snippets <= 0 && floating_windows <= 0) { creating_snippet = true; text_editor.SetText(ImGui::GetClipboardText()); } }
-        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_C)) {
-            ImGuiIO& io = ImGui::GetIO();
-            if (!io.WantTextInput && open_snippets > 0)
-                ImGui::SetClipboardText(edit_editor.GetText().c_str());
-        }
+        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_C)) { ImGuiIO& io = ImGui::GetIO(); if (!io.WantTextInput && open_snippets > 0) ImGui::SetClipboardText(edit_editor.GetText().c_str()); }
         if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Q)) if (!deleting) deleting = true;
         if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_S)) if (open_snippets > 0 && !save) save = true;
         if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_W)) if (open_snippets > 0 && !close_tab) close_tab = true;
